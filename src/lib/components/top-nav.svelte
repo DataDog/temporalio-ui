@@ -64,7 +64,7 @@
       {/key}
       <DataEncoderStatus />
     {/if}
-    {#if $authUser.accessToken}
+    {#if $authUser.idToken || $authUser.accessToken}
       <DropdownMenu id="user" position="right">
         <div slot="trigger" class="flex items-center gap-1">
           <img
