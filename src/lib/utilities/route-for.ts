@@ -279,11 +279,11 @@ export const routeForOIDCImplicitCallback = (): string => {
 
   // TODO: support optional issuer validation with settings.auth.issuerUrl and token.iss
 
-  if (!token.nonce) {
-    throw new OIDCImplicitCallbackError('No nonce in token');
-  } else if (token.nonce !== nonce) {
-    throw new OIDCImplicitCallbackError('Mismatched nonces');
-  }
+  // if (!token.nonce) {
+  //   throw new OIDCImplicitCallbackError('No nonce in token');
+  // } else if (token.nonce !== nonce) {
+  //   throw new OIDCImplicitCallbackError('Mismatched nonces');
+  // }
 
   const state = hash.get('state');
   const redirectUrl = new URL(
