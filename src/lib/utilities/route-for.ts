@@ -242,7 +242,7 @@ const routeForAuthorizationCodeFlow = (
  * @modifies adds items to browser localStorage and sessionStorage
  *
  */
-const routeForImplicitFlow = (
+export const routeForImplicitFlow = (
   settings: Settings,
   currentSearchParams: URLSearchParams,
   originUrl: string,
