@@ -2,7 +2,7 @@ import { persistStore } from '$lib/stores/persist-store';
 
 export const useDarkMode = persistStore(
   'dark mode',
-  !!import.meta.env.VITE_DARK_MODE,
+  import.meta.env.VITE_DARK_MODE,
   true,
 );
 
