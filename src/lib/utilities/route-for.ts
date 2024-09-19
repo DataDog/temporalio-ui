@@ -239,7 +239,7 @@ const routeForAuthorizationCodeFlow = (
 /**
  *
  * @returns URL for the SSO redirect
- * @modifies adds items to browser localStorage and sessionStorage
+ * @modifies adds items to browser localStorage
  *
  */
 export const routeForImplicitFlow = (
@@ -259,8 +259,8 @@ export const routeForImplicitFlow = (
 
   // state stores a reference to the redirect path
   const state = crypto.randomUUID();
-  sessionStorage.setItem(
-    state,
+  localStorage.setItem(
+    `oidc.${state}`,
     currentSearchParams.get('returnUrl') ?? (originUrl || '/'),
   );
   authorizationUrl.searchParams.set('state', state);
@@ -331,10 +331,10 @@ export const maybeRouteForOIDCImplicitCallback = (
   if (!stateKey) {
     throw new OIDCImplicitCallbackStateError('No state in hash');
   }
-  const redirectUrl = sessionStorage.getItem(stateKey);
+  const redirectUrl = localStorage.getItem(`oidc.${stateKey}`);
   if (!redirectUrl) {
     throw new OIDCImplicitCallbackStateError(
-      'Hash state missing from sessionStorage',
+      'Hash state missing from localStorage',
     );
   }
 

@@ -27,7 +27,7 @@ import '../../app.css';
 
 /**
  *
- * @modifies removes the nonce from localStorage and the state from sessionStorage
+ * @modifies removes the nonce and state from localStorage
  * @modifies drops the url hash fragment
  * @throws {Redirect} to address auth and login state
  *
@@ -67,7 +67,7 @@ export const load: LayoutLoad = async function ({
       setAuthUser(authUser, settings.auth.flow);
       localStorage.removeItem('nonce');
       if (stateKey) {
-        sessionStorage.removeItem(stateKey);
+        localStorage.removeItem(`oidc.${stateKey}`);
       }
 
       redirect(302, url);

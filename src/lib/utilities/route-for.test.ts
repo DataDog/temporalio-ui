@@ -362,10 +362,10 @@ describe('routeFor SSO authentication ', () => {
 
       const ssoUrlStateKey = new URL(sso).searchParams.get('state');
       expect(ssoUrlStateKey).not.toBeNull();
-      expect(window.sessionStorage.getItem(ssoUrlStateKey as string)).toBe(
-        'https://localhost/some/path',
-      );
-      window.sessionStorage.removeItem(ssoUrlStateKey as string);
+      expect(
+        window.localStorage.getItem(`oidc.${ssoUrlStateKey as string}`),
+      ).toBe('https://localhost/some/path');
+      window.localStorage.removeItem(`oidc.${ssoUrlStateKey as string}`);
     });
 
     describe('routeFor oidc implicit callback', () => {
@@ -419,8 +419,8 @@ describe('routeFor SSO authentication ', () => {
 
       it('should process the hash into the returned callback struct', () => {
         localStorage.setItem('nonce', 'denim-jacket');
-        sessionStorage.setItem(
-          'roper-boots',
+        localStorage.setItem(
+          'oidc.roper-boots',
           'https://nationalcowboymuseum.org/plan-your-visit/',
         ); // state
 
@@ -449,7 +449,7 @@ describe('routeFor SSO authentication ', () => {
         expect.soft(callback.stateKey).toBe('roper-boots');
 
         localStorage.removeItem('nonce');
-        sessionStorage.removeItem('roper-boots');
+        localStorage.removeItem('oidc.roper-boots');
       });
 
       it('should throw if the hash state key is missing from session storage', () => {
@@ -477,7 +477,7 @@ describe('routeFor SSO authentication ', () => {
         });
 
         expect(() => maybeRouteForOIDCImplicitCallback(`#${params}`)).toThrow(
-          'Hash state missing from sessionStorage',
+          'Hash state missing from localStorage',
         );
 
         localStorage.removeItem('nonce');
