@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { InvalidTokenError, jwtDecode, type JwtPayload } from 'jwt-decode';
+import lscache from 'lscache';
 
 import type { LayoutData, LayoutLoad } from './$types';
 
@@ -24,6 +25,8 @@ import {
 } from '$lib/utilities/route-for';
 
 import '../../app.css';
+
+lscache.flushExpired();
 
 /**
  *
@@ -67,7 +70,7 @@ export const load: LayoutLoad = async function ({
       setAuthUser(authUser, settings.auth.flow);
       localStorage.removeItem('nonce');
       if (stateKey) {
-        localStorage.removeItem(`oidc.${stateKey}`);
+        lscache.flush();
       }
 
       redirect(302, url);

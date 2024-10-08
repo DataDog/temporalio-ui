@@ -1,5 +1,6 @@
 import { BROWSER } from 'esm-env';
 import { InvalidTokenError, jwtDecode, type JwtPayload } from 'jwt-decode';
+import lscache from 'lscache';
 
 import { base } from '$app/paths';
 
@@ -253,15 +254,17 @@ export const routeForImplicitFlow = (
   authorizationUrl.searchParams.set('redirect_uri', originUrl);
   authorizationUrl.searchParams.set('scope', settings.auth.scopes.join(' '));
 
+  // FIXME: support concurrent requests with multiple TTL-ed nonces. but since we don't validate the nonce, it doesn't matter
   const nonce = crypto.randomUUID();
   window.localStorage.setItem('nonce', nonce);
   authorizationUrl.searchParams.set('nonce', nonce);
 
   // state stores a reference to the redirect path
   const state = crypto.randomUUID();
-  localStorage.setItem(
+  lscache.set(
     `oidc.${state}`,
     currentSearchParams.get('returnUrl') ?? (originUrl || '/'),
+    10,
   );
   authorizationUrl.searchParams.set('state', state);
 
@@ -331,7 +334,7 @@ export const maybeRouteForOIDCImplicitCallback = (
   if (!stateKey) {
     throw new OIDCImplicitCallbackStateError('No state in hash');
   }
-  const redirectUrl = localStorage.getItem(`oidc.${stateKey}`);
+  const redirectUrl = lscache.get(`oidc.${stateKey}`);
   if (!redirectUrl) {
     throw new OIDCImplicitCallbackStateError(
       'Hash state missing from localStorage',
