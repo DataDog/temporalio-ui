@@ -322,6 +322,7 @@ export const maybeRouteForOIDCImplicitCallback = (
 
   // TODO: support optional issuer validation with settings.auth.issuerUrl and token.iss
 
+  // README: this OIDC behavior is disabled because it's not supported by datadog Vault
   // if (!token.nonce) {
   //   throw new OIDCImplicitCallbackNonceError('No nonce in token');
   // } else if (token.nonce !== nonce) {
