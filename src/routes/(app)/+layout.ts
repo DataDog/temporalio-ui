@@ -17,9 +17,6 @@ import {
 } from '$lib/utilities/auth-user-cookie';
 import { isAuthorized } from '$lib/utilities/is-authorized';
 import {
-  maybeRouteForOIDCImplicitCallback,
-  type OIDCCallback,
-  OIDCImplicitCallbackError,
   routeForImplicitFlow,
   routeForLoginPage,
 } from '$lib/utilities/route-for';
@@ -50,30 +47,6 @@ export const load: LayoutLoad = async function ({
     if (authUser?.accessToken) {
       setAuthUser(authUser, settings.auth.flow);
       cleanAuthUserCookie();
-    }
-  } else if (settings.auth.flow == OIDCFlow.Implicit && window.location.hash) {
-    let callback: OIDCCallback;
-    try {
-      callback = maybeRouteForOIDCImplicitCallback(window.location.hash);
-    } catch (e) {
-      if (e instanceof OIDCImplicitCallbackError) {
-        clearHash();
-      } else {
-        throw e;
-      }
-    }
-
-    if (callback) {
-      clearHash();
-      const { redirectUrl: url, authUser, stateKey } = callback;
-
-      setAuthUser(authUser, settings.auth.flow);
-      localStorage.removeItem('nonce');
-      if (stateKey) {
-        lscache.flush();
-      }
-
-      redirect(302, url);
     }
   }
 
@@ -136,17 +109,3 @@ export const load: LayoutLoad = async function ({
     systemInfo,
   };
 };
-
-/**
- *
- * @modifies drops the url hash
- *
- */
-function clearHash() {
-  // known oidc sveltekit issue https://github.com/sveltejs/kit/issues/7271
-  history.replaceState(
-    null,
-    '',
-    window.location.pathname + window.location.search,
-  );
-}
