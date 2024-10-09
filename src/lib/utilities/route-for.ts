@@ -261,11 +261,9 @@ export const routeForImplicitFlow = (
 
   // state stores a reference to the redirect path
   const state = crypto.randomUUID();
-  lscache.set(
-    `oidc.${state}`,
-    currentSearchParams.get('returnUrl') ?? (originUrl || '/'),
-    10,
-  );
+  const stateUrl =
+    currentSearchParams.get('returnUrl') ?? window.location.href ?? '/';
+  lscache.set(`oidc.${state}`, stateUrl, 10);
   authorizationUrl.searchParams.set('state', state);
 
   return authorizationUrl.toString();
