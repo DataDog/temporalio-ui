@@ -1,5 +1,6 @@
 import { BROWSER } from 'esm-env';
 import { InvalidTokenError, jwtDecode, type JwtPayload } from 'jwt-decode';
+import lscache from 'lscache';
 
 import { base } from '$app/paths';
 
@@ -239,10 +240,10 @@ const routeForAuthorizationCodeFlow = (
 /**
  *
  * @returns URL for the SSO redirect
- * @modifies adds items to browser localStorage and sessionStorage
+ * @modifies adds items to browser localStorage
  *
  */
-const routeForImplicitFlow = (
+export const routeForImplicitFlow = (
   settings: Settings,
   currentSearchParams: URLSearchParams,
   originUrl: string,
@@ -253,16 +254,16 @@ const routeForImplicitFlow = (
   authorizationUrl.searchParams.set('redirect_uri', originUrl);
   authorizationUrl.searchParams.set('scope', settings.auth.scopes.join(' '));
 
+  // FIXME: support concurrent requests with multiple TTL-ed nonces. but since we don't validate the nonce, it doesn't matter
   const nonce = crypto.randomUUID();
   window.localStorage.setItem('nonce', nonce);
   authorizationUrl.searchParams.set('nonce', nonce);
 
   // state stores a reference to the redirect path
   const state = crypto.randomUUID();
-  sessionStorage.setItem(
-    state,
-    currentSearchParams.get('returnUrl') ?? (originUrl || '/'),
-  );
+  const stateUrl =
+    currentSearchParams.get('returnUrl') ?? window.location.href ?? '/';
+  lscache.set(`oidc.${state}`, stateUrl, 10);
   authorizationUrl.searchParams.set('state', state);
 
   return authorizationUrl.toString();
@@ -321,6 +322,7 @@ export const maybeRouteForOIDCImplicitCallback = (
 
   // TODO: support optional issuer validation with settings.auth.issuerUrl and token.iss
 
+  // README: this OIDC behavior is disabled because it's not supported by datadog Vault
   // if (!token.nonce) {
   //   throw new OIDCImplicitCallbackNonceError('No nonce in token');
   // } else if (token.nonce !== nonce) {
@@ -331,10 +333,10 @@ export const maybeRouteForOIDCImplicitCallback = (
   if (!stateKey) {
     throw new OIDCImplicitCallbackStateError('No state in hash');
   }
-  const redirectUrl = sessionStorage.getItem(stateKey);
+  const redirectUrl = lscache.get(`oidc.${stateKey}`);
   if (!redirectUrl) {
     throw new OIDCImplicitCallbackStateError(
-      'Hash state missing from sessionStorage',
+      'Hash state missing from localStorage',
     );
   }
 

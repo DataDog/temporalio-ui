@@ -1,4 +1,6 @@
 import { redirect } from '@sveltejs/kit';
+import { InvalidTokenError, jwtDecode, type JwtPayload } from 'jwt-decode';
+import lscache from 'lscache';
 
 import type { LayoutData, LayoutLoad } from './$types';
 
@@ -15,17 +17,17 @@ import {
 } from '$lib/utilities/auth-user-cookie';
 import { isAuthorized } from '$lib/utilities/is-authorized';
 import {
-  maybeRouteForOIDCImplicitCallback,
-  type OIDCCallback,
-  OIDCImplicitCallbackError,
+  routeForImplicitFlow,
   routeForLoginPage,
 } from '$lib/utilities/route-for';
 
 import '../../app.css';
 
+lscache.flushExpired();
+
 /**
  *
- * @modifies removes the nonce from localStorage and the state from sessionStorage
+ * @modifies removes the nonce and state from localStorage
  * @modifies drops the url hash fragment
  * @throws {Redirect} to address auth and login state
  *
@@ -46,30 +48,6 @@ export const load: LayoutLoad = async function ({
       setAuthUser(authUser, settings.auth.flow);
       cleanAuthUserCookie();
     }
-  } else if (settings.auth.flow == OIDCFlow.Implicit && window.location.hash) {
-    let callback: OIDCCallback;
-    try {
-      callback = maybeRouteForOIDCImplicitCallback(window.location.hash);
-    } catch (e) {
-      if (e instanceof OIDCImplicitCallbackError) {
-        clearHash();
-      } else {
-        throw e;
-      }
-    }
-
-    if (callback) {
-      clearHash();
-      const { redirectUrl: url, authUser, stateKey } = callback;
-
-      setAuthUser(authUser, settings.auth.flow);
-      localStorage.removeItem('nonce');
-      if (stateKey) {
-        sessionStorage.removeItem(stateKey);
-      }
-
-      redirect(302, url);
-    }
   }
 
   if (!settings.auth.enabled) {
@@ -77,6 +55,40 @@ export const load: LayoutLoad = async function ({
   }
 
   const user = getAuthUser();
+
+  // hello hackness my old friend
+  // i've come to auth with you again
+  // because a session softly stale-ing
+  // left itself while devs were sleeping
+  // and the token that was planted yesterday
+  // still remains
+  // within the sound of login
+  //
+  // 🎵 to the tune of "The Sound of Silence" 🎵
+  //
+  // save the redirect and the click through the login page, iff there is an expired id token.
+  // the login page is still used to display auth errors (e.g. UI proxy)
+  if (user?.idToken) {
+    let token: JwtPayload;
+    try {
+      token = jwtDecode(user.idToken);
+    } catch (e) {
+      if (e instanceof InvalidTokenError) {
+        clearAuthUser();
+      }
+
+      throw e;
+    }
+
+    if (token?.exp && token.exp * 1000 <= Date.now()) {
+      clearAuthUser();
+      const location = new URL(document.location.toString());
+      redirect(
+        302,
+        routeForImplicitFlow(settings, location.searchParams, location.origin),
+      );
+    }
+  }
 
   if (!isAuthorized(settings, user)) {
     redirect(302, routeForLoginPage());
@@ -97,17 +109,3 @@ export const load: LayoutLoad = async function ({
     systemInfo,
   };
 };
-
-/**
- *
- * @modifies drops the url hash
- *
- */
-function clearHash() {
-  // known oidc sveltekit issue https://github.com/sveltejs/kit/issues/7271
-  history.replaceState(
-    null,
-    '',
-    window.location.pathname + window.location.search,
-  );
-}
