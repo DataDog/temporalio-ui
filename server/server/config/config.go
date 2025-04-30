@@ -85,6 +85,7 @@ type (
 		KeyData                string `yaml:"keyData"`
 		EnableHostVerification bool   `yaml:"enableHostVerification"`
 		ServerName             string `yaml:"serverName"`
+		DisableTLS             bool   `yaml:"disableTLS"`
 	}
 
 	Auth struct {

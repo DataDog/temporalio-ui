@@ -60,16 +60,15 @@ func CreateTLSConfig(address string, cfg *config.TLS) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if cfg.CaFile != "" || cfg.CaData != "" {
+	if !cfg.DisableTLS {
 		caCertPool, err := loadCACert(cfg)
 		if err != nil {
 			log.Fatalf("Unable to load server CA certificate")
 			return nil, err
 		}
-
 		caPool = caCertPool
 	}
+
 	if cfg.CertFile != "" || cfg.CertData != "" {
 		keyPair, err := loadKeyPair(cfg)
 		if err != nil {
@@ -111,44 +110,51 @@ func CreateTLSConfig(address string, cfg *config.TLS) (*tls.Config, error) {
 }
 
 func loadCACert(cfg *config.TLS) (caPool *x509.CertPool, err error) {
-	pathOrUrl := cfg.CaFile
-	caData := cfg.CaData
 
-	caPool = x509.NewCertPool()
-	var caBytes []byte
-
-	if strings.HasPrefix(pathOrUrl, "http://") {
-		return nil, errors.New("HTTP is not supported for CA cert URLs. Provide HTTPS URL")
+	caPool, err = x509.SystemCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("unable to load system CA cert pool: %v", err)
 	}
 
-	if strings.HasPrefix(pathOrUrl, "https://") {
-		resp, err := netClient.Get(pathOrUrl)
-		if err != nil {
-			return nil, fmt.Errorf("unable  to load CA cert from URL: %v", err)
-		}
-		defer resp.Body.Close()
-		caBytes, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("unable to load CA cert from URL: %v", err)
+	// Append additional CA certs configured if provided
+	if cfg.CaFile != "" || cfg.CaData != "" {
+		pathOrUrl := cfg.CaFile
+		caData := cfg.CaData
+		var caBytes []byte
+
+		if strings.HasPrefix(pathOrUrl, "http://") {
+			return nil, errors.New("HTTP is not supported for CA cert URLs. Provide HTTPS URL")
 		}
 
-		log.Printf("Loaded TLS CA cert from URL: %v", pathOrUrl)
-	} else if pathOrUrl != "" {
-		caBytes, err = os.ReadFile(pathOrUrl)
-		if err != nil {
-			return nil, fmt.Errorf("unable to load CA cert from file: %v", err)
-		}
-		log.Printf("Loaded TLS CA cert from file: %v", pathOrUrl)
-	} else if caData != "" {
-		caBytes, err = base64.StdEncoding.DecodeString(caData)
-		if err != nil {
-			return nil, fmt.Errorf("unable to decode CA cert from base64: %v", err)
-		}
-		log.Printf("Loaded CA cert from base64")
-	}
+		if strings.HasPrefix(pathOrUrl, "https://") {
+			resp, err := netClient.Get(pathOrUrl)
+			if err != nil {
+				return nil, fmt.Errorf("unable  to load CA cert from URL: %v", err)
+			}
+			defer resp.Body.Close()
+			caBytes, err = io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("unable to load CA cert from URL: %v", err)
+			}
 
-	if !caPool.AppendCertsFromPEM(caBytes) {
-		return nil, errors.New("unknown failure constructing cert pool for ca")
+			log.Printf("Loaded TLS CA cert from URL: %v", pathOrUrl)
+		} else if pathOrUrl != "" {
+			caBytes, err = os.ReadFile(pathOrUrl)
+			if err != nil {
+				return nil, fmt.Errorf("unable to load CA cert from file: %v", err)
+			}
+			log.Printf("Loaded TLS CA cert from file: %v", pathOrUrl)
+		} else if caData != "" {
+			caBytes, err = base64.StdEncoding.DecodeString(caData)
+			if err != nil {
+				return nil, fmt.Errorf("unable to decode CA cert from base64: %v", err)
+			}
+			log.Printf("Loaded CA cert from base64")
+		}
+
+		if !caPool.AppendCertsFromPEM(caBytes) {
+			return nil, errors.New("unknown failure constructing cert pool for ca")
+		}
 	}
 	return caPool, nil
 }
