@@ -12,14 +12,14 @@
 
   export let logout: () => void;
 
-  let showProfilePic = true;
+  $: showProfilePic = !!$authUser?.picture;
 
   function fixImage() {
     showProfilePic = false;
   }
 </script>
 
-{#if $authUser.accessToken}
+{#if $authUser.idToken || $authUser.accessToken}
   <MenuContainer>
     <MenuButton variant="ghost" hasIndicator controls="user-menu">
       <img
@@ -35,7 +35,7 @@
       >
         {#if $authUser?.name}
           <div class="text-center text-sm text-black">
-            {$authUser?.name.trim().charAt(0)}
+            {$authUser?.name.trim().charAt(0).toUpperCase()}
           </div>
         {/if}
       </div>
