@@ -1,10 +1,13 @@
 import { BROWSER } from 'esm-env';
+import { InvalidTokenError, jwtDecode, type JwtPayload } from 'jwt-decode';
+import lscache from 'lscache';
 
 import { resolve } from '$app/paths';
 import type { ResolvedPathname } from '$app/types';
 
 import type { EventView } from '$lib/types/events';
-import type { Settings } from '$lib/types/global';
+import type { User } from '$lib/types/global';
+import { OIDCFlow, type Settings } from '$lib/types/global';
 import { encodeURIForSvelte } from '$lib/utilities/encode-uri';
 import { toURL } from '$lib/utilities/to-url';
 
@@ -402,7 +405,24 @@ export const routeForAuthentication = (
   parameters: AuthenticationParameters,
 ): string => {
   const { settings, searchParams: currentSearchParams, originUrl } = parameters;
+  switch (settings.auth.flow) {
+    case OIDCFlow.AuthorizationCode:
+    default:
+      return routeForAuthorizationCodeFlow(
+        settings,
+        currentSearchParams,
+        originUrl,
+      );
+    case OIDCFlow.Implicit:
+      return routeForImplicitFlow(settings, currentSearchParams, originUrl);
+  }
+};
 
+const routeForAuthorizationCodeFlow = (
+  settings: Settings,
+  currentSearchParams: URLSearchParams,
+  originUrl: string,
+) => {
   const login = new URL(resolve('/auth/sso', {}), settings.baseUrl);
   let opts = settings.auth.options ?? [];
 
@@ -423,10 +443,102 @@ export const routeForAuthentication = (
   return login.toString();
 };
 
-export const routeForLoginPage = (
-  error = '',
-  isBrowser = BROWSER,
-): ResolvedPathname => {
+export const routeForImplicitFlow = (
+  settings: Settings,
+  currentSearchParams: URLSearchParams,
+  originUrl: string,
+): string => {
+  const authorizationUrl = new URL(settings.auth.authorizationUrl);
+  authorizationUrl.searchParams.set('response_type', 'id_token');
+  authorizationUrl.searchParams.set('client_id', settings.auth.clientId);
+  authorizationUrl.searchParams.set('redirect_uri', originUrl);
+  authorizationUrl.searchParams.set('scope', settings.auth.scopes.join(' '));
+
+  const nonce = crypto.randomUUID();
+  window.localStorage.setItem('nonce', nonce);
+  authorizationUrl.searchParams.set('nonce', nonce);
+
+  const state = crypto.randomUUID();
+  const stateUrl =
+    currentSearchParams.get('returnUrl') ?? window.location.href ?? '/';
+  lscache.set(`oidc.${state}`, stateUrl, 10);
+  authorizationUrl.searchParams.set('state', state);
+
+  return authorizationUrl.toString();
+};
+
+export type OIDCCallback = {
+  redirectUrl: string;
+  authUser: User;
+  stateKey: string;
+};
+
+export class OIDCImplicitCallbackError extends Error {}
+export class OIDCImplicitCallbackNonceError extends OIDCImplicitCallbackError {}
+export class OIDCImplicitCallbackStateError extends OIDCImplicitCallbackError {}
+
+export const maybeRouteForOIDCImplicitCallback = (
+  rawHash: string,
+): OIDCCallback | null => {
+  const hash = new URLSearchParams(rawHash.substring(1));
+
+  interface OIDCImplicitJwtPayload extends JwtPayload {
+    nonce?: string;
+    name?: string;
+    email?: string;
+  }
+
+  const rawIdToken = hash.get('id_token');
+  if (!rawIdToken) {
+    return null;
+  }
+
+  const nonce = window.localStorage.getItem('nonce');
+  if (!nonce) {
+    throw new OIDCImplicitCallbackNonceError('No nonce in localStorage');
+  }
+
+  let token: OIDCImplicitJwtPayload;
+  try {
+    token = jwtDecode<OIDCImplicitJwtPayload>(rawIdToken);
+  } catch (e) {
+    if (e instanceof InvalidTokenError) {
+      throw new OIDCImplicitCallbackError('Invalid id_token in hash');
+    } else {
+      throw new OIDCImplicitCallbackError(e);
+    }
+  }
+
+  // README: this OIDC behavior is disabled because it's not supported by datadog Vault
+  // if (!token.nonce) {
+  //   throw new OIDCImplicitCallbackNonceError('No nonce in token');
+  // } else if (token.nonce !== nonce) {
+  //   throw new OIDCImplicitCallbackNonceError('Mismatched nonces');
+  // }
+
+  const stateKey = hash.get('state');
+  if (!stateKey) {
+    throw new OIDCImplicitCallbackStateError('No state in hash');
+  }
+  const redirectUrl = lscache.get(`oidc.${stateKey}`);
+  if (!redirectUrl) {
+    throw new OIDCImplicitCallbackStateError(
+      'Hash state missing from localStorage',
+    );
+  }
+
+  return {
+    redirectUrl: redirectUrl,
+    authUser: {
+      idToken: rawIdToken,
+      name: token.name,
+      email: token.email,
+    },
+    stateKey: stateKey,
+  };
+};
+
+export const routeForLoginPage = (error = '', isBrowser = BROWSER): string => {
   if (isBrowser) {
     const login = new URL(resolve('/login', {}), window.location.origin);
     login.searchParams.set('returnUrl', window.location.href);

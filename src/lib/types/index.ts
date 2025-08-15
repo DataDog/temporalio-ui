@@ -1,5 +1,7 @@
 import type { google, temporal } from '@temporalio/proto';
 
+import type { OIDCFlow } from '$lib/types/global';
+
 // api.workflowservice
 
 export type DescribeNamespaceResponse =
@@ -278,7 +280,17 @@ export type Duration = google.protobuf.IDuration;
 
 // extra APIs
 export type SettingsResponse = {
-  Auth: { Enabled: boolean; Options: string[] };
+  Auth: {
+    Enabled: boolean;
+    Flow: OIDCFlow;
+    ProviderURL: string;
+    IssuerURL: string;
+    AuthorizationURL: string;
+    ClientID: string;
+    Scopes: string[];
+    Options: string[];
+  };
+  BannerText: string;
   Codec: {
     Endpoint: string;
     PassAccessToken?: boolean;

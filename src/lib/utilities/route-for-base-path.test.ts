@@ -13,6 +13,7 @@ import {
   routeForEventHistory,
   routeForEventHistoryEvent,
   routeForEventHistoryImport,
+  routeForImplicitFlow,
   routeForLoginPage,
   routeForNamespace,
   routeForNamespaces,
@@ -51,6 +52,9 @@ import {
   routeForWorkflowsWithQuery,
   routeForWorkflowUpdate,
 } from './route-for';
+
+// Functions that redirect to external providers and do not use the SvelteKit base path.
+const externalRedirectFunctions = new Set(['routeForImplicitFlow']);
 
 describe('routeFor functions should resolve the base path exactly once', () => {
   const namespaceParams = { namespace: 'default' };
@@ -208,12 +212,31 @@ describe('routeFor functions should resolve the base path exactly once', () => {
     );
 
     const missing = exportedRouteForFunctions.filter(
-      (name) => !testedNames.has(name),
+      (name) => !testedNames.has(name) && !externalRedirectFunctions.has(name),
     );
     if (missing.length > 0) {
       throw new Error(
         `Missing base path test cases for: ${missing.join(', ')}. Add them to the cases array above.`,
       );
     }
+  });
+
+  it('routeForImplicitFlow should return an external URL string', () => {
+    const settings = {
+      auth: {
+        authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+        clientId: 'client-id',
+        scopes: ['openid', 'email'],
+      },
+      baseUrl: 'https://localhost',
+    };
+    const result = routeForImplicitFlow(
+      settings,
+      new URLSearchParams(),
+      'https://localhost/callback',
+    );
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).toMatch(/^https:\/\/accounts\.google\.com/);
   });
 });
