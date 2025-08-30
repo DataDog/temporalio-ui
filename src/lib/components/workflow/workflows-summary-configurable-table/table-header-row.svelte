@@ -47,8 +47,8 @@
         on:change={handleCheckboxChange}
       />
     </th>
+    <th class="w-12" />
   {/if}
-  <th class="w-12" />
   {#if $supportsBulkActions && $batchActionsVisible}
     <th class="batch-actions-table-cell" colspan={columnsCount}>
       <BatchActions {workflows} />
